@@ -2,6 +2,7 @@ import akka.actor.{ActorSystem, Scheduler}
 import akka.stream.{ActorMaterializer, Materializer}
 import com.google.inject.AbstractModule
 import com.typesafe.config.{Config, ConfigFactory}
+import org.apache.kafka.common.serialization.{LongSerializer, StringDeserializer, StringSerializer}
 
 import scala.concurrent.{ExecutionContext, ExecutionContextExecutor}
 
@@ -19,5 +20,9 @@ object MainModule extends AbstractModule {
     bind(classOf[ActorMaterializer]).toInstance(materializer)
     bind(classOf[Materializer]).toInstance(materializer)
     bind(classOf[ExecutionContext]).toInstance(as.dispatcher)
+
+    bind(classOf[LongSerializer]).toInstance(new LongSerializer)
+    bind(classOf[StringSerializer]).toInstance(new StringSerializer)
+    bind(classOf[StringDeserializer]).toInstance(new StringDeserializer)
   }
 }

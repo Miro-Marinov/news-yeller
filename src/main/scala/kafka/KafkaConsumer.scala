@@ -23,6 +23,7 @@ class KafkaConsumer @Inject()(kafkaConfig: KafkaConfig)
     source(topic)
       .runWith(Sink.foreach {
         case (offset, msg) =>
+          println(msg)
           val deserialized = Serialization.read[T](msg)
           f(deserialized)
           offset.commitScaladsl()

@@ -3,7 +3,7 @@ package twitter.domain.entities
 import java.util.Date
 
 
-final case class Tweet(contributors: Seq[Contributor] = Seq.empty,
+final case class Tweet(matching_rules: Seq[MatchingRule] = Seq.empty,
                        coordinates: Option[Coordinates] = None,
                        created_at: Date,
                        current_user_retweet: Option[TweetId] = None,
@@ -41,3 +41,9 @@ final case class Tweet(contributors: Seq[Contributor] = Seq.empty,
                        withheld_in_countries: Seq[String] = Seq.empty,
                        withheld_scope: Option[String] = None,
                        metadata: Option[StatusMetadata] = None)
+
+object Tweet {
+  implicit val ord: Ordering[Tweet] = Ordering.by({
+    tweet: Tweet => tweet.retweet_count
+  }).reverse // ?
+}

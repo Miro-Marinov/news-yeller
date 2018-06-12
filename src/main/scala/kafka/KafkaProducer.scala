@@ -14,12 +14,13 @@ import twitter.domain.entities.Tweet
 @Singleton
 class KafkaProducer @Inject()(kafkaConfig: KafkaConfig) extends JsonSupport {
 
-  def twitter: Sink[Tweet, NotUsed] =
+  def twitter(keyF: Tweet => String): Sink[Tweet, NotUsed] =
     Flow[Tweet]
       .map { tweet =>
-        val key = tweet.id
+        val key = keyF(tweet)
         val json = Serialization.write(tweet)
-        new ProducerRecord[Long, String]("twitter", key, json)
+        println(json)
+        new ProducerRecord[String, String]("tweets", key, json)
       }
       .to(Producer.plainSink(kafkaConfig.producerSettings))
 }

@@ -89,7 +89,8 @@ class TwitterClient @Inject()(twitterConfig: TwitterConfig,
         .filter(_.nonEmpty)
         .map(data => unmarshalStream(data))
         .flatMapConcat {
-          case Success(message) => Source.single(message)
+          case Success(message) =>
+            Source.single(message)
           case Failure(cause) =>
             logger.error(s"Got an error while unmarshalling message", cause)
             Source.failed(cause)
