@@ -1,6 +1,7 @@
+package kafka
+
 import akka.stream.ActorMaterializer
 import com.google.inject.{Guice, Inject}
-import kafka.KafkaProcessor
 import com.lightbend.kafka.scala.streams.DefaultSerdes._
 import com.lightbend.kafka.scala.streams.ImplicitConversions._
 

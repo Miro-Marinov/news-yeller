@@ -34,5 +34,7 @@ libraryDependencies ++= Seq(
   "com.typesafe.slick" %% "slick" % slickVersion,
   "com.typesafe.slick" %% "slick-hikaricp" % slickVersion,
   "com.typesafe.slick" %% "slick-codegen" % slickVersion,
-  "org.slf4j" % "slf4j-log4j12" % "1.7.25"
+  "org.slf4j" % "slf4j-log4j12" % "1.7.25",
+
+  "com.rometools" % "rome" % "1.8.1"
 )

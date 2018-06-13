@@ -1,3 +1,5 @@
+package di
+
 import akka.actor.{ActorSystem, Scheduler}
 import akka.stream.{ActorMaterializer, Materializer}
 import com.google.inject.AbstractModule

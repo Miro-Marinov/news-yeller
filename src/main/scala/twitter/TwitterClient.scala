@@ -18,7 +18,7 @@ import twitter.auth.OAuthHeaderGenerator
 import twitter.config.TwitterConfig
 import twitter.domain.entities.Tweet
 
-import scala.concurrent.ExecutionContextExecutor
+import scala.concurrent.{Await, ExecutionContextExecutor}
 import scala.util.{Failure, Success, Try}
 
 class TwitterClient @Inject()(twitterConfig: TwitterConfig,
@@ -74,7 +74,8 @@ class TwitterClient @Inject()(twitterConfig: TwitterConfig,
             val statusCode = failureResponse.status
             import scala.concurrent.duration._
             implicit val ec: ExecutionContextExecutor = m.executionContext
-            val errorData = failureResponse.entity.toStrict(2 seconds).map { b => println(b.data.utf8String) }
+            val eventualErrorData = failureResponse.entity.toStrict(2 seconds)
+            val errorData = Await.result(eventualErrorData, 2 seconds)
             logger.error(s"Got an error response with status code: $statusCode and data: $errorData")
             Source.failed(new RuntimeException(s"Got an error response with status code : $statusCode and data: $errorData"))
           case Failure(cause) =>

@@ -1,34 +1,35 @@
+package finrax
+
 import actor.TwitterAggregatingActor
-import akka.NotUsed
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.Http.ServerBinding
 import akka.http.scaladsl.model.sse.ServerSentEvent
 import akka.http.scaladsl.server.Route
 import akka.pattern.{Backoff, BackoffSupervisor}
-import akka.stream.scaladsl.{Keep, Sink, Source}
-import akka.stream.{Materializer, OverflowStrategy}
+import akka.stream.Materializer
+import akka.stream.scaladsl.{BroadcastHub, Keep, Sink, Source}
 import akka.util.Timeout
 import com.google.inject.{Guice, Inject}
+import di.MainModule
 import http.Routes
 import kafka.KafkaConsumer
-import twitter.domain.entities.Tweet
 import twitter.{StatusFilter, TwitterClient}
 
-import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.duration._
+import scala.concurrent.{ExecutionContext, Future}
 
 /**
   * Created by mirob on 8/19/2017.
   */
 
-object ServerApp extends App {
+object MainApp extends App {
   val injector = Guice.createInjector(MainModule)
-  injector.getInstance(classOf[ServerApp]).run()
+  injector.getInstance(classOf[MainApp]).run()
 }
 
-class ServerApp @Inject()(routes: Routes)
-                         (implicit kafkaConsumer: KafkaConsumer,
+class MainApp @Inject()(routes: Routes)
+                       (implicit kafkaConsumer: KafkaConsumer,
                           actorSystem: ActorSystem,
                           materializer: Materializer,
                           twitterClient: TwitterClient,
@@ -41,10 +42,15 @@ class ServerApp @Inject()(routes: Routes)
     val trackedWords = Seq("#BTC", "#bitcoin", "#btc", "bitcoin", "btc")
 
     val filter = StatusFilter(tracks = trackedWords)
-    val (actorRef, publisher) = Source.actorRef[Tweet](1000, OverflowStrategy.fail).toMat(Sink.asPublisher(false))(Keep.both).run()
-    val source: Source[ServerSentEvent, NotUsed] = Source.fromPublisher(publisher).map(tweet => ServerSentEvent(tweet.toString))
 
-    val twitterAggregatingActorProps = TwitterAggregatingActor.props(actorRef, 15, "crypto")
+    val (actorRef, sseSource) =
+      Source.actorRef[String](5, akka.stream.OverflowStrategy.dropTail)
+        .map(s => ServerSentEvent(s))
+        .keepAlive(5.second, () => ServerSentEvent.heartbeat)
+        .toMat(BroadcastHub.sink[ServerSentEvent])(Keep.both)
+        .run()
+
+    val twitterAggregatingActorProps = TwitterAggregatingActor.props(actorRef, 15, "twitter")
     val btcBackOffSupervisorProps = BackoffSupervisor.props(
       Backoff.onStop(
         childName = "twitterAggregatingActor",
@@ -55,12 +61,10 @@ class ServerApp @Inject()(routes: Routes)
       )
     )
 
-    val route: Route = routes.sse("twitter", source)
 
     val twitterAggregatingActorSupervisor =
       actorSystem.actorOf(btcBackOffSupervisorProps, name = "twitterAggregatingActorSupervisor")
 
-//    twitterClient.getStatusesFilterStream(filter).runWith(Sink foreach println)
     twitterClient.getStatusesFilterStream(filter)
       .mapAsync(4) { tweet =>
         import akka.pattern.ask
@@ -68,6 +72,8 @@ class ServerApp @Inject()(routes: Routes)
         twitterAggregatingActorSupervisor ? tweet
       } runWith Sink.ignore
 
+
+    val route: Route = routes.sse("twitter", sseSource)
     val binding: Future[ServerBinding] = Http().bindAndHandle(route, host, port)
     binding.onComplete(_ => println(s"Server running bound to: $host:$port"))
   }

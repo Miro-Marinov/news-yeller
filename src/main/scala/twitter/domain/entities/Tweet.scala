@@ -2,6 +2,8 @@ package twitter.domain.entities
 
 import java.util.Date
 
+import org.json4s.native.Serialization
+
 
 final case class Tweet(matching_rules: Seq[MatchingRule] = Seq.empty,
                        coordinates: Option[Coordinates] = None,
@@ -40,10 +42,11 @@ final case class Tweet(matching_rules: Seq[MatchingRule] = Seq.empty,
                        withheld_copyright: Boolean = false,
                        withheld_in_countries: Seq[String] = Seq.empty,
                        withheld_scope: Option[String] = None,
-                       metadata: Option[StatusMetadata] = None)
+                       metadata: Option[StatusMetadata] = None) {
+}
 
 object Tweet {
   implicit val ord: Ordering[Tweet] = Ordering.by({
     tweet: Tweet => tweet.retweet_count
-  }).reverse // ?
+  })
 }

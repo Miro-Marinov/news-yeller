@@ -1,6 +1,8 @@
+package kafka
+
 import akka.Done
 import com.google.inject.{Guice, Inject}
-import kafka.KafkaConsumer
+import di.MainModule
 import twitter.domain.entities.Tweet
 
 import scala.concurrent.Future
@@ -13,8 +15,7 @@ object ConsumerApp extends App {
 class ConsumerApp @Inject()(kafkaConsumer: KafkaConsumer) {
   def run(): Future[Done] = {
     kafkaConsumer.consume[Tweet]("aggregated-tweets") { tweets =>
-//      println(tweets)
-      {}
+      println(tweets)
     }
   }
 }

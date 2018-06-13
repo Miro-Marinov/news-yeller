@@ -7,11 +7,14 @@ import java.time.temporal.ChronoUnit
 import actor.TwitterAggregatingActor.{Ack, State}
 import akka.actor.{ActorLogging, ActorRef, Props}
 import akka.persistence.{PersistentActor, SnapshotOffer, SnapshotSelectionCriteria}
+import finrax.BoundedPriorityQueue
+import org.json4s.native.Serialization
+import serializaiton.JsonSupport
 import twitter.domain.entities.Tweet
 
 
-class TwitterAggregatingActor(sourceActor: ActorRef, n: Int, topic: String) extends PersistentActor with ActorLogging {
-  val snapShotMsgInterval = 1000
+class TwitterAggregatingActor(sourceActor: ActorRef, n: Int, topic: String) extends PersistentActor with ActorLogging with JsonSupport {
+  val snapShotMsgInterval = 100
   var state = State(new BoundedPriorityQueue[Tweet](n))
 
 
@@ -24,7 +27,9 @@ class TwitterAggregatingActor(sourceActor: ActorRef, n: Int, topic: String) exte
     case tweet: Tweet => updateState(tweet)
   }
 
-  def filterTweet(tweet: Tweet) = true
+  def filterTweet(tweet: Tweet): Boolean = {
+    tweet.retweeted && tweet.retweet_count > 30
+  }
 
   val receiveCommand: Receive = {
     case tweet: Tweet =>
@@ -37,14 +42,11 @@ class TwitterAggregatingActor(sourceActor: ActorRef, n: Int, topic: String) exte
   }
 
   def processTweet(tweet: Tweet): Unit = {
-    println("HERE2")
-
-    Some(tweet) /*.filter(tweet => filterTweet(tweet))*/ .foreach { tweet =>
+    Some(tweet).filter(tweet => filterTweet(tweet)) .foreach { tweet =>
       persist(tweet) { event ⇒
-        println("HERE")
         if (updateState(event)) {
-          println("HERE")
-          sourceActor ! state
+          val jsonState = Serialization.write(state.topNTweets.toList)
+          sourceActor ! Serialization.write(jsonState)
         }
         context.system.eventStream.publish(event)
         if (lastSequenceNr % snapShotMsgInterval == 0 && lastSequenceNr != 0) {
