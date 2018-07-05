@@ -12,8 +12,8 @@ val akkaHttpVersion = "10.0.10"
 val akkaVersion = "2.5.12"
 val akkaPersistenceVersion = "2.5.12"
 val slickVersion  = "3.2.3"
+
 libraryDependencies ++= Seq(
-  "ch.qos.logback" % "logback-classic" % "1.1.9",
   "com.google.inject" % "guice" % "4.1.0",
   "org.json4s" %% "json4s-native" % "3.5.3",
 
@@ -24,9 +24,7 @@ libraryDependencies ++= Seq(
   "com.typesafe.akka" %% "akka-testkit" % akkaVersion % Test,
   "com.typesafe.akka" %% "akka-http" % akkaHttpVersion,
   "com.typesafe.akka" %% "akka-http-testkit" % akkaHttpVersion % Test,
-  "com.typesafe.akka" %% "akka-stream-kafka" % "0.20",
   "com.typesafe.scala-logging" %% "scala-logging" % "3.8.0",
-  "com.lightbend" %% "kafka-streams-scala" % "0.2.1",
 
   "de.heikoseeberger" %% "akka-http-json4s" % "1.18.0",
 
@@ -36,5 +34,7 @@ libraryDependencies ++= Seq(
   "com.typesafe.slick" %% "slick-codegen" % slickVersion,
   "org.slf4j" % "slf4j-log4j12" % "1.7.25",
 
-  "com.rometools" % "rome" % "1.8.1"
+  "com.rometools" % "rome" % "1.8.1",
+
+  "io.cryptocontrol" % "crypto-news-api" % "1.1.0"
 )

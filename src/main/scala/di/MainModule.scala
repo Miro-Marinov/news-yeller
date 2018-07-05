@@ -1,30 +1,37 @@
-package di
+package finrax.di
 
-import akka.actor.{ActorSystem, Scheduler}
-import akka.stream.{ActorMaterializer, Materializer}
+import akka.actor.{ActorRef, ActorSystem, Scheduler}
+import akka.stream.{ActorMaterializer, ActorMaterializerSettings, Materializer, Supervision}
 import com.google.inject.AbstractModule
 import com.typesafe.config.{Config, ConfigFactory}
-import org.apache.kafka.common.serialization.{LongSerializer, StringDeserializer, StringSerializer}
+import finrax.actor.PrintlnActor
+import io.cryptocontrol.cryptonewsapi.CryptoControlApi
 
 import scala.concurrent.{ExecutionContext, ExecutionContextExecutor}
 
 object MainModule extends AbstractModule {
 
   def configure(): Unit = {
-    implicit val config: Config = ConfigFactory.load()
-    implicit val as: ActorSystem = ActorSystem("main-actor-system")
-    implicit val materializer: ActorMaterializer = ActorMaterializer()
-    implicit val executionContext: ExecutionContextExecutor = as.dispatcher
+    // Restart each graph stage on failure
+    val decider: Supervision.Decider = {
+      _ => Supervision.Restart
+    }
+    val config: Config = ConfigFactory.load()
+    val cryptoControlApi: CryptoControlApi = new CryptoControlApi(config.getString("cryptocontrol.apiKey"))
+    implicit val actorSystem: ActorSystem = ActorSystem("main-actor-system")
+    implicit val materializer: ActorMaterializer = ActorMaterializer(ActorMaterializerSettings(actorSystem).withSupervisionStrategy(decider))
+    implicit val executionContext: ExecutionContextExecutor = actorSystem.dispatcher
+    val printlnActor = actorSystem.actorOf(PrintlnActor.props(), name = "printlnActor")
 
     bind(classOf[Config]).toInstance(config)
-    bind(classOf[ActorSystem]).toInstance(as)
-    bind(classOf[Scheduler]).toInstance(as.scheduler)
+    bind(classOf[ActorSystem]).toInstance(actorSystem)
+    bind(classOf[Scheduler]).toInstance(actorSystem.scheduler)
     bind(classOf[ActorMaterializer]).toInstance(materializer)
     bind(classOf[Materializer]).toInstance(materializer)
-    bind(classOf[ExecutionContext]).toInstance(as.dispatcher)
+    bind(classOf[ExecutionContext]).toInstance(actorSystem.dispatcher)
 
-    bind(classOf[LongSerializer]).toInstance(new LongSerializer)
-    bind(classOf[StringSerializer]).toInstance(new StringSerializer)
-    bind(classOf[StringDeserializer]).toInstance(new StringDeserializer)
+    bind(classOf[CryptoControlApi]).toInstance(cryptoControlApi)
+
+    bind(classOf[ActorRef]).toInstance(printlnActor)
   }
 }

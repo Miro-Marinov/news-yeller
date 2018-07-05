@@ -1,0 +1,8 @@
+package actor
+
+/**
+  *
+  */
+class AggregatingActor {
+
+}
