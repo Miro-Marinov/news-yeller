@@ -28,9 +28,10 @@ class CryptoControlClient @Inject()(api: CryptoControlApi, cryptoControlConfig: 
     Source.tick(1 second, cryptoControlConfig.pollingIntervalMs millis, NotUsed)
       .runForeach { _ =>
         api.getTopNews(new CryptoControlApi.OnResponseHandler[java.util.List[CArticle]]() {
-          override def onSuccess(body: java.util.List[CArticle]): Unit = {
+          override def onSuccess(body: java.util.List[CArticle]) = {
             val articles = body.asScala.map { a => a: Article }.toList
-            cryptoControlActorSupervisor ! articles
+            import akka.pattern.ask
+            cryptoControlActorSupervisor ? articles
           }
 
           override def onFailure(e: Exception): Unit = {
