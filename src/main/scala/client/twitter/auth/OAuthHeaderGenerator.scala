@@ -2,7 +2,7 @@ package finrax.clients.twitter.auth
 
 import akka.http.scaladsl.model.HttpRequest
 import akka.http.scaladsl.model.headers.RawHeader
-import finrax.clients.twitter.Implicits._
+import finrax.util.Implicits._
 import finrax.clients.twitter.StatusFilter
 import javax.inject.Singleton
 

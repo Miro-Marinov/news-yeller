@@ -7,7 +7,7 @@ case class RssFeedEntry(pubDate: Instant, title: String, categories: List[String
 object RssFeedEntry {
   implicit val ord: Ordering[RssFeedEntry] = Ordering.by({
     feedEntry: RssFeedEntry => feedEntry.pubDate
-  }).reverse
+  })
 }
 
 

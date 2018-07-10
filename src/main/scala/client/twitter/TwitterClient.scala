@@ -1,31 +1,49 @@
 package finrax.clients.twitter
 
-import akka.NotUsed
-import akka.actor.ActorSystem
+import akka.{Done, NotUsed}
+import akka.actor.{ActorRef, ActorSystem}
 import akka.http.scaladsl.Http.HostConnectionPool
 import akka.http.scaladsl._
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.settings._
 import akka.stream.scaladsl.{Source, _}
 import akka.stream.{ActorMaterializer, KillSwitches, Materializer, UniqueKillSwitch}
-import akka.util.ByteString
+import akka.util.{ByteString, Timeout}
 import com.typesafe.scalalogging.LazyLogging
+import finrax.actor.topn.{TopNActor, TopNActorConfig}
 import finrax.clients.twitter.auth.OAuthHeaderGenerator
 import finrax.clients.twitter.config.TwitterConfig
 import finrax.clients.twitter.domain.entities.Tweet
 import finrax.serializaiton.JsonSerialization
+import finrax.util.{ActorUtil, HttpUtil}
 import javax.inject.Inject
 import org.json4s.native.Serialization
-import finrax.util.HttpUtil
+
+import scala.concurrent.Future
+import scala.concurrent.duration._
 import scala.util.Try
 
 class TwitterClient @Inject()(twitterConfig: TwitterConfig,
-                              authHeaderGenerator: OAuthHeaderGenerator)
-                             (implicit system: ActorSystem, m: ActorMaterializer) extends LazyLogging {
+                              authHeaderGenerator: OAuthHeaderGenerator,
+                              topNActorConfig: TopNActorConfig)
+                             (implicit actorSystem: ActorSystem, m: ActorMaterializer) extends LazyLogging {
 
   import twitterConfig._
 
   private val statusesUrl = s"$streamingPublicEndpoint/$twitterVersion/statuses"
+
+  def startTwitterStream(aggregator: ActorRef): Future[Done] = {
+    val twitterTopNActorProps = TopNActor.props[Tweet, String](aggregator, "twitter", topNActorConfig)(tweet => tweet.id_str)
+    val supervisorProps = ActorUtil.backOffSupervisorProps("twitterActor", twitterTopNActorProps)
+    val twitterActorSupervisor = actorSystem.actorOf(supervisorProps, name = "twitterActorSupervisor")
+
+    getStatusesFilterStream
+      .mapAsync(5) { tweet =>
+        import akka.pattern.ask
+        implicit val askTimeout: Timeout = Timeout(5 seconds)
+        twitterActorSupervisor ? tweet
+      } runWith Sink.ignore
+  }
 
   def getStatusesFilterStream: Source[Tweet, UniqueKillSwitch] = {
     val filter: StatusFilter = StatusFilter(tracks = twitterConfig.tracks, follow = twitterConfig.followed)
@@ -43,14 +61,13 @@ class TwitterClient @Inject()(twitterConfig: TwitterConfig,
     def withTwitterAuthHeader(filter: StatusFilter): HttpRequest =
       request.addHeader(authHeaderGenerator.getAuthHeader(request, filter, twitterConfig.accessToken, twitterConfig.consumerToken))
 
-    def toTweetStream(implicit system: ActorSystem, m: Materializer): Source[Tweet, UniqueKillSwitch] = { // format: ON
+    def toTweetStream: Source[Tweet, UniqueKillSwitch] = { // format: ON
 
       val scheme = request.uri.scheme
       val host = request.uri.authority.host.toString
       val port = request.uri.effectivePort
 
-      val poolSettings = ConnectionPoolSettings(system)
-        .withMaxConnections(1)
+      val poolSettings = ConnectionPoolSettings.default
         .withPipeliningLimit(1) // TODO: What is this
         .withMaxRetries(0)
 

@@ -2,7 +2,7 @@ package finrax.clients.twitter
 
 import finrax.clients.twitter.enums.FilterLevel.FilterLevel
 import finrax.clients.twitter.enums.Language.Language
-import Implicits._
+import finrax.util.Implicits._
 
 case class StatusFilter(follow: Seq[Long] = Seq.empty,
                         tracks: Seq[String] = Seq.empty,

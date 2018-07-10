@@ -57,7 +57,7 @@ object HttpUtil extends LazyLogging {
       Source.failed(cause)
   }
 
-  def requestPollingToStreamOf[T](request: HttpRequest, unmarshal: ByteString => Try[T])
+  def requestPollingToStreamOf[T](request: HttpRequest, unmarshal: ByteString => Try[T], pollingIntervalMs: Int)
                                  (implicit system: ActorSystem, m: Materializer): Source[T, Cancellable] = {
     val poolSettings = ConnectionPoolSettings(system)
       .withMaxConnections(1)
@@ -67,7 +67,7 @@ object HttpUtil extends LazyLogging {
     val connPool = Http().superPool[NotUsed](settings = poolSettings)
 
     Source
-      .tick(1 second, 5 minutes, request)
+      .tick(1 second, pollingIntervalMs millis, request)
       .map(req => (req, NotUsed))
       .via(connPool)
       .map { case (responseTry, _) ⇒ responseTry }

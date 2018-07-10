@@ -36,6 +36,6 @@ final case class Tweet(matching_rules: Seq[MatchingRule] = Seq.empty,
 
 object Tweet {
   implicit val ord: Ordering[Tweet] = Ordering.by({
-    tweet: Tweet => tweet.retweet_count
+    tweet: Tweet => (tweet.retweet_count, tweet.favorite_count, tweet.created_at)
   })
 }

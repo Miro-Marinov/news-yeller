@@ -13,4 +13,5 @@ class RedditConfig @Inject()(config: Config) {
   val password: String = config.getString("reddit.password")
 
   val subs:List[String] = config.getStringList("reddit.subs").asScala.toList
+  val pollingIntervalMs: Int = config.getInt("reddit.polling-interval")
 }

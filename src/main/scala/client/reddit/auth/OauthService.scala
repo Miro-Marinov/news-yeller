@@ -9,6 +9,7 @@ import akka.http.scaladsl.model.headers.RawHeader
 import akka.stream.Materializer
 import akka.util.ByteString
 import com.google.inject.{Inject, Singleton}
+import com.typesafe.scalalogging.LazyLogging
 import finrax.clients.reddit.config.RedditConfig
 import finrax.clients.reddit.domain.Endpoint
 import org.json4s._
@@ -18,7 +19,7 @@ import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContextExecutor, Future}
 
 @Singleton
-class OauthService @Inject()(redditConfig: RedditConfig)(implicit actorSystem: ActorSystem, m: Materializer) {
+class OauthService @Inject()(redditConfig: RedditConfig)(implicit actorSystem: ActorSystem, m: Materializer) extends LazyLogging {
 
   def getAccessToken: Future[String] = {
     import redditConfig._
@@ -35,6 +36,10 @@ class OauthService @Inject()(redditConfig: RedditConfig)(implicit actorSystem: A
     implicit val ec: ExecutionContextExecutor = m.executionContext
     val eventualResponseEntity = Http(actorSystem).singleRequest(request).flatMap { response =>
       response.entity.toStrict(5 seconds).map(_.data)
+    } recoverWith {
+      case e =>
+        logger.error("Error when authenticating to Reddit", e)
+        Future.failed(e)
     }
     eventualResponseEntity map unmarshalAccessToken
   }

@@ -4,7 +4,6 @@ import akka.actor.{ActorRef, ActorSystem, Scheduler}
 import akka.stream.{ActorMaterializer, ActorMaterializerSettings, Materializer, Supervision}
 import com.google.inject.AbstractModule
 import com.typesafe.config.{Config, ConfigFactory}
-import finrax.actor.PrintlnActor
 import io.cryptocontrol.cryptonewsapi.CryptoControlApi
 
 import scala.concurrent.{ExecutionContext, ExecutionContextExecutor}
@@ -21,7 +20,6 @@ object MainModule extends AbstractModule {
     implicit val actorSystem: ActorSystem = ActorSystem("main-actor-system")
     implicit val materializer: ActorMaterializer = ActorMaterializer(ActorMaterializerSettings(actorSystem).withSupervisionStrategy(decider))
     implicit val executionContext: ExecutionContextExecutor = actorSystem.dispatcher
-    val printlnActor = actorSystem.actorOf(PrintlnActor.props(), name = "printlnActor")
 
     bind(classOf[Config]).toInstance(config)
     bind(classOf[ActorSystem]).toInstance(actorSystem)
@@ -31,7 +29,5 @@ object MainModule extends AbstractModule {
     bind(classOf[ExecutionContext]).toInstance(actorSystem.dispatcher)
 
     bind(classOf[CryptoControlApi]).toInstance(cryptoControlApi)
-
-    bind(classOf[ActorRef]).toInstance(printlnActor)
   }
 }

@@ -1,28 +1,30 @@
 package finrax.clients.reddit
 
 import akka.NotUsed
-import akka.actor.ActorSystem
+import akka.actor.{ActorRef, ActorSystem}
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.headers.RawHeader
 import akka.stream.Materializer
-import akka.stream.scaladsl.Source
-import akka.util.ByteString
+import akka.stream.scaladsl.{Sink, Source}
+import akka.util.{ByteString, Timeout}
 import client.reddit.domain.RedditPost
 import com.google.inject.Inject
+import finrax.actor.topn.{TopNActor, TopNActorConfig}
 import finrax.clients.reddit.auth.OauthService
 import finrax.clients.reddit.config.RedditConfig
 import finrax.clients.reddit.domain.{Endpoint, RequestParams, Sorting}
-import finrax.serializaiton.JsonSerialization
-import finrax.util.HttpUtil
+import finrax.util.{ActorUtil, HttpUtil}
 import org.json4s.JsonAST.{JArray, JObject}
 import org.json4s.native.JsonMethods._
 
 import scala.collection.mutable
+import scala.concurrent.duration._
 import scala.util.Try
 
-class RedditClient @Inject()(redditConfig: RedditConfig, oauthService: OauthService)
+class RedditClient @Inject()(redditConfig: RedditConfig, oauthService: OauthService, topNActorConfig: TopNActorConfig)
                             (implicit actorSystem: ActorSystem, m: Materializer) {
 
+  // TODO Sorting.HOT is unused
   def stream(subRedditDisplayName: String, sorting: Sorting.Value = Sorting.HOT, requestParams: RequestParams = RequestParams(mutable.Map())): Source[List[RedditPost], NotUsed] = {
     Source.fromFuture(oauthService.getAccessToken)
       .flatMapConcat {
@@ -34,19 +36,30 @@ class RedditClient @Inject()(redditConfig: RedditConfig, oauthService: OauthServ
             .withEntity(entity)
             .addHeader(RawHeader("Authorization", s"Bearer $token"))
 
-          HttpUtil.requestPollingToStreamOf(request, umarshal)
+          HttpUtil.requestPollingToStreamOf(request, unmarshal, redditConfig.pollingIntervalMs)
       }
   }
 
+  def startRedditStreams(aggregator: ActorRef): Unit = {
+    val redditTopNActorProps = TopNActor.props[RedditPost, String](aggregator, "reddit", topNActorConfig)(entry => entry.permalink)
+    val supervisorProps = ActorUtil.backOffSupervisorProps("redditActor", redditTopNActorProps)
+    val redditActorSupervisor = actorSystem.actorOf(supervisorProps, name = "redditActorSupervisor")
 
-  private def umarshal(data: ByteString) = {
+    redditConfig.subs.foreach(sub =>
+      stream(sub).mapAsync(5) { redditPosts =>
+        import akka.pattern.ask
+        implicit val askTimeout: Timeout = Timeout(5 seconds)
+        redditActorSupervisor ? redditPosts
+      } runWith Sink.ignore)
+  }
+
+  private def unmarshal(data: ByteString) = {
     Try {
       val jsonString = data.utf8String
       val json = parse(jsonString)
       val JObject(posts) = json \ "data" \ "children" \\ "data"
-      println(compact(render(JArray(posts map { case (_, v) => v }))))
       import finrax.serializaiton.JsonSerialization.redditFormats
-      JArray(posts map { case (_, v) => v }).extract[List[RedditPost]]
+      JArray(posts map { case (_, v) => v }).extract[List[RedditPost]].filterNot(_.stickied)
     }
   }
 }
