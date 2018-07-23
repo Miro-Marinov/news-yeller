@@ -31,7 +31,6 @@ class AggregatingActor(sseSourceActor: ActorRef, override val persistenceId: Str
   val handleEventFunction: PartialFunction[Any, Unit] = {
     case topNState: finrax.actor.topn.State[_] => persist(topNState) { persisted =>
       updateFunction(persisted)
-      // TODO: Make it so the state is sent to the source at intervals of, say, 30 seconds using akka scheduler making the actor sending a message to itself
       sendToSseSourceActor()
 
       if (lastSequenceNr % snapShotMsgInterval == 0 && lastSequenceNr != 0) {

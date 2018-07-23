@@ -2,6 +2,7 @@ package finrax.util
 
 import scala.reflect.runtime.universe.{TypeTag, typeOf}
 
+
 /** Handy class for working around erased generics in actor receive blocks.
   *
   * Typical usage: {{{
@@ -73,17 +74,20 @@ import scala.reflect.runtime.universe.{TypeTag, typeOf}
   * assign it to a variable.
   */
 object GenericMessage {
-  sealed trait Matcher[T] { def unapply(msg: GenericMessage[_]): Option[T] }
+
+  sealed trait Matcher[T] {
+    def unapply(msg: GenericMessage[_]): Option[T]
+  }
 
   def matcher[U <: GenericMessage[U] : TypeTag]: Matcher[U] = new Matcher[U] {
     def unapply(msg: GenericMessage[_]): Option[U] = msg match {
-      case t: U @unchecked if t.conformsTo[U] => Some(t)
+      case t: U@unchecked if t.conformsTo[U] => Some(t)
       case _ => None
     }
   }
 }
 
-abstract class GenericMessage[+T : TypeTag] extends Serializable {
+abstract class GenericMessage[+T: TypeTag] extends Serializable {
   // TODO: Why?
   this: T =>
   def conformsTo[U >: T : TypeTag]: Boolean = typeOf[T] <:< typeOf[U]

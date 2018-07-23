@@ -10,11 +10,11 @@ import finrax.actor.topn.TopNActor.Ack
 import scala.reflect.ClassTag
 import scala.reflect.runtime.universe.TypeTag
 
-
 class TopNActor[T <: AnyRef : ClassTag : TypeTag, U]
 (aggregator: ActorRef, override val persistenceId: String, topNActorConfig: TopNActorConfig)(uniquenessF: T => U)
 (implicit ord: Ordering[T])
   extends PersistentActor with ActorLogging {
+
   val snapShotMsgInterval: Int = topNActorConfig.snapshotIntervalMsgs
   val capacity: Int = topNActorConfig.capacity
   var topN = Vector.empty[T]
@@ -28,11 +28,11 @@ class TopNActor[T <: AnyRef : ClassTag : TypeTag, U]
 
   def add(element: T): Boolean = {
     if (topN.size < capacity) {
-      topN = (topN :+ element).sorted(ord.reverse)
+      topN = (topN :+ element).groupBy(uniquenessF).mapValues(_.head).values.toVector.sorted(ord.reverse)
       true
     }
     else if (ord.gt(element, topN(topN.size - 1))) {
-      topN = topN.updated(topN.size - 1, element).sorted(ord.reverse)
+      topN = topN.updated(topN.size - 1, element).groupBy(uniquenessF).mapValues(_.head).values.toVector.sorted(ord.reverse)
       true
     }
     else {
@@ -87,4 +87,5 @@ object TopNActor {
   case object Ack
 
   case object Complete
+
 }

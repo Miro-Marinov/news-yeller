@@ -3,6 +3,7 @@ package finrax.clients.cryptocontrol
 import akka.actor.{ActorRef, ActorSystem}
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.Source
+import akka.util.Timeout
 import akka.{Done, NotUsed}
 import client.cryptocontrol.config.CryptoControlConfig
 import com.google.inject.{Inject, Singleton}
@@ -31,6 +32,7 @@ class CryptoControlClient @Inject()(api: CryptoControlApi, cryptoControlConfig: 
           override def onSuccess(body: java.util.List[CArticle]) = {
             val articles = body.asScala.map { a => a: Article }.toList
             import akka.pattern.ask
+            implicit val askTimeout: Timeout = Timeout(5 seconds)
             cryptoControlActorSupervisor ? articles
           }
 

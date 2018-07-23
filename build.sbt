@@ -30,6 +30,7 @@ libraryDependencies ++= Seq(
   "com.typesafe.akka" %% "akka-http-testkit" % akkaHttpVersion % Test,
 
   "com.github.romix.akka" %% "akka-kryo-serialization" % "0.5.1",
+  "com.twitter" % "chill-akka_2.12" % "0.9.2",
   "com.typesafe.scala-logging" %% "scala-logging" % "3.8.0",
 
   "de.heikoseeberger" %% "akka-http-json4s" % "1.18.0",
