@@ -1,36 +1,47 @@
 package finrax.clients.twitter
 
-import akka.{Done, NotUsed}
+import java.time.format.{DateTimeFormatter, DateTimeFormatterBuilder}
+import java.time.{Instant, ZoneId, ZoneOffset}
+import java.util.Locale
+
 import akka.actor.{ActorRef, ActorSystem}
 import akka.http.scaladsl.Http.HostConnectionPool
 import akka.http.scaladsl._
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.settings._
 import akka.stream.scaladsl.{Source, _}
-import akka.stream.{ActorMaterializer, KillSwitches, Materializer, UniqueKillSwitch}
+import akka.stream.{ActorMaterializer, KillSwitches, UniqueKillSwitch}
 import akka.util.{ByteString, Timeout}
+import akka.{Done, NotUsed}
+import com.danielasfregola.twitter4s.TwitterRestClient
 import com.typesafe.scalalogging.LazyLogging
 import finrax.actor.topn.{TopNActor, TopNActorConfig}
 import finrax.clients.twitter.auth.OAuthHeaderGenerator
 import finrax.clients.twitter.config.TwitterConfig
-import finrax.clients.twitter.domain.entities.Tweet
-import finrax.serializaiton.JsonSerialization
+import finrax.clients.twitter.domain.entities.{Tweet, User}
+import finrax.serializaiton.JsonSupport
 import finrax.util.{ActorUtil, HttpUtil}
 import javax.inject.Inject
 import org.json4s.native.Serialization
 
-import scala.concurrent.Future
 import scala.concurrent.duration._
+import scala.concurrent.{ExecutionContextExecutor, Future}
 import scala.util.Try
 
 class TwitterClient @Inject()(twitterConfig: TwitterConfig,
                               authHeaderGenerator: OAuthHeaderGenerator,
-                              topNActorConfig: TopNActorConfig)
+                              topNActorConfig: TopNActorConfig,
+                              twitterRestClient: TwitterRestClient)
                              (implicit actorSystem: ActorSystem, m: ActorMaterializer) extends LazyLogging {
 
   import twitterConfig._
 
   private val statusesUrl = s"$streamingPublicEndpoint/$twitterVersion/statuses"
+  val formatter: DateTimeFormatter = new DateTimeFormatterBuilder()
+    .appendPattern("yyyy-MM-d")
+    .toFormatter()
+    .withZone(ZoneId.ofOffset("", ZoneOffset.UTC))
+    .withLocale(Locale.ENGLISH)
 
   def startTwitterStream(aggregator: ActorRef): Future[Done] = {
     val twitterTopNActorProps = TopNActor.props[Tweet, String](aggregator, "twitter", topNActorConfig)(tweet => tweet.id_str)
@@ -43,6 +54,44 @@ class TwitterClient @Inject()(twitterConfig: TwitterConfig,
         implicit val askTimeout: Timeout = Timeout(5 seconds)
         twitterActorSupervisor ? tweet
       } runWith Sink.ignore
+  }
+
+  def pollAndSendToAggregator(aggregator: ActorRef): Future[Done] = {
+    val twitterTopNActorProps = TopNActor.props[Tweet, String](aggregator, "twitter", topNActorConfig)(tweet => tweet.id_str)
+    val supervisorProps = ActorUtil.backOffSupervisorProps("twitterActor", twitterTopNActorProps)
+    val twitterActorSupervisor = actorSystem.actorOf(supervisorProps, name = "twitterActorSupervisor")
+
+    val pollingInterval = twitterConfig.pollingInterval
+    val queryRange = twitterConfig.queryRange
+
+    Source.tick(1 second, pollingInterval millis, NotUsed)
+      .runForeach { _ =>
+        val now = Instant.now()
+        val since = formatter.format(now.minusMillis(queryRange))
+        val until = formatter.format(now)
+        val query = twitterConfig.followedStr
+          .map(u => s"""from:$u""")
+          .mkString(" OR ")
+          .concat(s""" since:$since until:$until""")
+
+        implicit val ec: ExecutionContextExecutor = actorSystem.dispatcher
+        twitterRestClient.searchTweet(query).map { ratedDate =>
+          import akka.pattern.ask
+          implicit val askTimeout: Timeout = Timeout(5 seconds)
+          twitterActorSupervisor ? ratedDate.data.statuses.map {
+            t =>
+              Tweet(t.created_at.toInstant,
+                t.favorite_count,
+                t.id_str,
+                t.lang,
+                t.possibly_sensitive,
+                t.retweet_count,
+                t.source,
+                t.text,
+                t.user.map(u => User(u.email, u.favourites_count, u.followers_count, u.id_str, u.name, u.profile_banner_url)))
+          }
+        }
+      }
   }
 
   def getStatusesFilterStream: Source[Tweet, UniqueKillSwitch] = {
@@ -73,9 +122,9 @@ class TwitterClient @Inject()(twitterConfig: TwitterConfig,
 
       val httpFlow: Flow[(HttpRequest, NotUsed), (Try[HttpResponse], NotUsed), HostConnectionPool] =
         if (scheme == "https")
-          Http().newHostConnectionPoolHttps(host, port, settings = poolSettings)
+          Http().cachedHostConnectionPoolHttps(host, port, settings = poolSettings)
         else
-          Http().newHostConnectionPool(host, port, poolSettings)
+          Http().cachedHostConnectionPool(host, port, poolSettings)
 
       Source.single(request)
         .viaMat(KillSwitches.single)(Keep.right)
@@ -89,7 +138,7 @@ class TwitterClient @Inject()(twitterConfig: TwitterConfig,
 
     private def unmarshalStream(data: ByteString): Try[Tweet] = {
       val json = data.utf8String
-      import JsonSerialization.twitterFormats
+      import JsonSupport.twitterFormats
       //TODO: Deal with the {"limit":{"track":16,"timestamp_ms":"1530816027847"} message when too many tweets are being streamed
       Try(Serialization.read[Tweet](json))
     }

@@ -19,7 +19,7 @@ import org.json4s.native.JsonMethods._
 
 import scala.collection.mutable
 import scala.concurrent.duration._
-import scala.util.Try
+import scala.util.{Failure, Success, Try}
 
 class RedditClient @Inject()(redditConfig: RedditConfig, oauthService: OauthService, topNActorConfig: TopNActorConfig)
                             (implicit actorSystem: ActorSystem, m: Materializer) {
@@ -28,19 +28,20 @@ class RedditClient @Inject()(redditConfig: RedditConfig, oauthService: OauthServ
   def stream(subRedditDisplayName: String, sorting: Sorting.Value = Sorting.HOT, requestParams: RequestParams = RequestParams(mutable.Map())): Source[List[RedditPost], NotUsed] = {
     Source.fromFuture(oauthService.getAccessToken)
       .flatMapConcat {
-        token =>
+        case Success(token) =>
           val contentType = ContentType(MediaTypes.`application/x-www-form-urlencoded`, HttpCharsets.`UTF-8`)
           val entity = FormData(requestParams).toEntity(HttpCharsets.`UTF-8`).withContentType(contentType)
           val url = Endpoint.subreddit(subRedditDisplayName)
           val request = HttpRequest(method = HttpMethods.GET, url)
             .withEntity(entity)
             .addHeader(RawHeader("Authorization", s"Bearer $token"))
-
           HttpUtil.requestPollingToStreamOf(request, unmarshal, redditConfig.pollingIntervalMs)
+        case Failure(_) =>
+          Source.empty
       }
   }
 
-  def startRedditStreams(aggregator: ActorRef): Unit = {
+  def pollAndSendToAggregator(aggregator: ActorRef): Unit = {
     val redditTopNActorProps = TopNActor.props[RedditPost, String](aggregator, "reddit", topNActorConfig)(entry => entry.permalink)
     val supervisorProps = ActorUtil.backOffSupervisorProps("redditActor", redditTopNActorProps)
     val redditActorSupervisor = actorSystem.actorOf(supervisorProps, name = "redditActorSupervisor")
@@ -58,7 +59,7 @@ class RedditClient @Inject()(redditConfig: RedditConfig, oauthService: OauthServ
       val jsonString = data.utf8String
       val json = parse(jsonString)
       val JObject(posts) = json \ "data" \ "children" \\ "data"
-      import finrax.serializaiton.JsonSerialization.redditFormats
+      import finrax.serializaiton.JsonSupport.redditFormats
       JArray(posts map { case (_, v) => v }).extract[List[RedditPost]].filterNot(_.stickied)
     }
   }

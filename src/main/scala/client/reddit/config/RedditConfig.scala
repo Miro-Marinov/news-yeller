@@ -8,7 +8,6 @@ import collection.JavaConverters._
 class RedditConfig @Inject()(config: Config) {
   val clientId: String = config.getString("reddit.clientId")
   val clientSecret: String = config.getString("reddit.clientSecret")
-  val userAgent: String = config.getString("reddit.userAgent")
   val username: String = config.getString("reddit.username")
   val password: String = config.getString("reddit.password")
 

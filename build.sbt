@@ -20,13 +20,14 @@ val slickVersion = "3.2.3"
 libraryDependencies ++= Seq(
   "com.google.inject" % "guice" % "4.1.0",
   "org.json4s" %% "json4s-native" % "3.5.3",
-  // Akka persistence
+
   "com.typesafe.akka" %% "akka-persistence" % akkaVersion,
   "com.github.dnvriend" %% "akka-persistence-jdbc" % "3.4.0",
   "com.typesafe.akka" %% "akka-actor" % akkaVersion,
   "com.typesafe.akka" %% "akka-testkit" % akkaVersion % Test,
   "com.typesafe.akka" %% "akka-stream" % akkaVersion,
   "com.typesafe.akka" %% "akka-http" % akkaHttpVersion,
+  "com.typesafe.akka" %% "akka-http-spray-json" % akkaHttpVersion,
   "com.typesafe.akka" %% "akka-http-testkit" % akkaHttpVersion % Test,
 
   "com.github.romix.akka" %% "akka-kryo-serialization" % "0.5.1",
@@ -45,5 +46,6 @@ libraryDependencies ++= Seq(
 
   "io.cryptocontrol" % "crypto-news-api" % "1.1.0",
 
-  "org.scalaz" %% "scalaz-core" % "7.2.25"
+  "org.scalaz" %% "scalaz-core" % "7.2.25",
+  "com.danielasfregola" %% "twitter4s" % "5.5"
 )

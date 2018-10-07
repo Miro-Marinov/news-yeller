@@ -17,11 +17,12 @@ import org.json4s.native.JsonMethods._
 
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContextExecutor, Future}
+import scala.util.{Failure, Try}
 
 @Singleton
 class OauthService @Inject()(redditConfig: RedditConfig)(implicit actorSystem: ActorSystem, m: Materializer) extends LazyLogging {
 
-  def getAccessToken: Future[String] = {
+  def getAccessToken: Future[Try[String]] = {
     import redditConfig._
     val formParams = Map(
       "grant_type" -> "password",
@@ -44,9 +45,15 @@ class OauthService @Inject()(redditConfig: RedditConfig)(implicit actorSystem: A
     eventualResponseEntity map unmarshalAccessToken
   }
 
-  private def unmarshalAccessToken(data: ByteString): String = {
-    import finrax.serializaiton.JsonSerialization.commonFormats
-    compact(render(parse(data.utf8String) \ "access_token")) replaceAll("\"", "")
+  private def unmarshalAccessToken(data: ByteString): Try[String] = {
+    import finrax.serializaiton.JsonSupport.commonFormats
+    Try {
+      compact(render(parse(data.utf8String) \ "access_token")) replaceAll("\"", "")
+    } recoverWith {
+      case e: Throwable =>
+        logger.error(s"Error when unmarshalling Reddit access token: ${data.utf8String}", e)
+        Failure(e)
+    }
   }
 
   private def genSignature(key: String, secret: String): String = {

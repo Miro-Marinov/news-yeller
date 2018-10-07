@@ -23,13 +23,13 @@ import scala.concurrent.duration._
 
 case class RssFeedClient @Inject()(rssFeedConfig: RssFeedConfig, topNActorConfig: TopNActorConfig)(implicit actorSystem: ActorSystem, m: Materializer) extends LazyLogging {
 
-  def startRssFeedStreams(aggregator: ActorRef): Unit = {
+  def pollAndSendToAggregator(aggregator: ActorRef): Unit = {
     val rssFeedTopNActorProps = TopNActor.props[RssFeedEntry, String](aggregator, "rssFeed", topNActorConfig)(entry => entry.link)
     val supervisorProps = ActorUtil.backOffSupervisorProps("rssFeedActor", rssFeedTopNActorProps)
     val rssFeedSupervisor = actorSystem.actorOf(supervisorProps, name = "rssFeedActorSupervisor")
 
-    rssFeedConfig.rssFeeds.foreach(feed =>
-      stream(feed).mapAsync(5) { redditPosts =>
+    rssFeedConfig.rssFeeds.foreach(feedUrl =>
+      stream(feedUrl).mapAsync(5) { redditPosts =>
         import akka.pattern.ask
         implicit val askTimeout: Timeout = Timeout(5 seconds)
         rssFeedSupervisor ? redditPosts
@@ -60,7 +60,7 @@ case class RssFeedClient @Inject()(rssFeedConfig: RssFeedConfig, topNActorConfig
         itemWithMergedCategories = JObject("categories" -> JArray(categories) :: itemWithNoCategories)
       } yield itemWithMergedCategories
       val jsString = compact(render(JArray(itemsWithMergedCategories)))
-      import finrax.serializaiton.JsonSerialization.rssFeedFormats
+      import finrax.serializaiton.JsonSupport.rssFeedFormats
       Serialization.read[List[RssFeedEntry]](jsString).sorted.take(15)
     }
   }

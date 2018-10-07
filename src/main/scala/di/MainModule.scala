@@ -2,6 +2,7 @@ package finrax.di
 
 import akka.actor.{ActorRef, ActorSystem, Scheduler}
 import akka.stream.{ActorMaterializer, ActorMaterializerSettings, Materializer, Supervision}
+import com.danielasfregola.twitter4s.TwitterRestClient
 import com.google.inject.AbstractModule
 import com.typesafe.config.{Config, ConfigFactory}
 import io.cryptocontrol.cryptonewsapi.CryptoControlApi
@@ -20,13 +21,14 @@ object MainModule extends AbstractModule {
     implicit val actorSystem: ActorSystem = ActorSystem("main-actor-system")
     implicit val materializer: ActorMaterializer = ActorMaterializer(ActorMaterializerSettings(actorSystem).withSupervisionStrategy(decider))
     implicit val executionContext: ExecutionContextExecutor = actorSystem.dispatcher
-
+    val restClient = TwitterRestClient()
     bind(classOf[Config]).toInstance(config)
     bind(classOf[ActorSystem]).toInstance(actorSystem)
     bind(classOf[Scheduler]).toInstance(actorSystem.scheduler)
     bind(classOf[ActorMaterializer]).toInstance(materializer)
     bind(classOf[Materializer]).toInstance(materializer)
     bind(classOf[ExecutionContext]).toInstance(actorSystem.dispatcher)
+    bind(classOf[TwitterRestClient]).toInstance(restClient)
 
     bind(classOf[CryptoControlApi]).toInstance(cryptoControlApi)
   }

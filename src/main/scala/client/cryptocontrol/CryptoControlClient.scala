@@ -21,7 +21,7 @@ import scala.concurrent.duration._
 @Singleton
 class CryptoControlClient @Inject()(api: CryptoControlApi, cryptoControlConfig: CryptoControlConfig, topNActorConfig: TopNActorConfig)(implicit actorSystem: ActorSystem, m: ActorMaterializer) extends LazyLogging {
 
-  def pollNewsAndSendToAggregator(aggregator: ActorRef): Future[Done] = {
+  def pollAndSendToAggregator(aggregator: ActorRef): Future[Done] = {
     val cryptoControlNActorProps = TopNActor.props[Article, String](aggregator, "cryptoControl", topNActorConfig)(article => article.id)
     val supervisorProps = ActorUtil.backOffSupervisorProps("cryptoControlActor", cryptoControlNActorProps)
     val cryptoControlActorSupervisor = actorSystem.actorOf(supervisorProps, name = "cryptoControlActorSupervisor")

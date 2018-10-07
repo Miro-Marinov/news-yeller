@@ -33,5 +33,11 @@ class TwitterConfig @Inject()(config: Config) {
   
   val followed: List[Long] = config.getLongList("twitter.followed").asScala.map(Long2long).toList
 
+  val followedStr: List[String] = config.getStringList("twitter.followedstr").asScala.toList
+
   val tracks: List[String] = config.getStringList("twitter.tracks").asScala.toList
+
+  val pollingInterval: Long = config.getLong("twitter.polling-interval")
+
+  val queryRange: Long = config.getLong("twitter.query-range")
 }

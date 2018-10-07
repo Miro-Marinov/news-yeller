@@ -3,13 +3,14 @@ package finrax.actor.aggregator
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 
+import actor.aggregator.GetState
 import akka.actor.{ActorLogging, ActorRef, Props}
 import akka.persistence.{PersistentActor, RecoveryCompleted, SnapshotOffer, SnapshotSelectionCriteria}
 import client.reddit.domain.RedditPost
 import finrax.client.cryptocontrol.domain.Article
 import finrax.clients.rssfeed.RssFeedEntry
 import finrax.clients.twitter.domain.entities.Tweet
-import finrax.serializaiton.JsonSerialization.finraxFormats
+import finrax.serializaiton.JsonSupport.finraxFormats
 import org.json4s.native.Serialization
 
 class AggregatingActor(sseSourceActor: ActorRef, override val persistenceId: String, aggregatingActorConfig: AggregatingActorConfig) extends PersistentActor with ActorLogging {
@@ -53,7 +54,10 @@ class AggregatingActor(sseSourceActor: ActorRef, override val persistenceId: Str
     case RecoveryCompleted => sendToSseSourceActor()
   }
 
-  val receiveCommand: Receive = handleEventFunction
+  val receiveCommand: Receive = handleEventFunction orElse {
+    case GetState =>
+      sender() ! state
+  }
 }
 
 object AggregatingActor {
